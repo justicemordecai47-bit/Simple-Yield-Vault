@@ -1,4 +1,3 @@
-
 (define-constant ERR-NOT-AUTHORIZED (err u1000))
 (define-constant ERR-INVALID-AMOUNT (err u1001))
 (define-constant ERR-INSUFFICIENT-BALANCE (err u1002))
@@ -19,13 +18,16 @@
 (define-data-var is-paused bool false)
 (define-data-var vault-name (string-ascii 32) "Simple Yield Vault")
 
-(define-map UserShares principal uint)
-(define-map UserStats 
-    principal 
+(define-map UserShares
+    principal
+    uint
+)
+(define-map UserStats
+    principal
     {
         total-deposited: uint,
         total-withdrawn: uint,
-        last-action-block: uint
+        last-action-block: uint,
     }
 )
 
@@ -51,19 +53,13 @@
 )
 
 (define-private (calculate-stx-value (shares uint))
-    (let
-        (
-            (current-index (var-get rebase-index))
-        )
+    (let ((current-index (var-get rebase-index)))
         (/ (* shares current-index) SCALE-FACTOR)
     )
 )
 
 (define-private (calculate-shares (stx-amount uint))
-    (let
-        (
-            (current-index (var-get rebase-index))
-        )
+    (let ((current-index (var-get rebase-index)))
         (if (is-eq current-index u0)
             stx-amount
             (/ (* stx-amount SCALE-FACTOR) current-index)
@@ -80,10 +76,7 @@
 )
 
 (define-read-only (get-user-balance (user principal))
-    (let
-        (
-            (shares (default-to u0 (map-get? UserShares user)))
-        )
+    (let ((shares (default-to u0 (map-get? UserShares user))))
         (ok (calculate-stx-value shares))
     )
 )
@@ -97,80 +90,93 @@
         paused: (var-get is-paused),
         total-shares: (var-get total-shares),
         total-deposited: (var-get total-deposited),
-        current-index: (var-get rebase-index)
+        current-index: (var-get rebase-index),
     })
 )
 
 (define-public (deposit (amount uint))
-    (let
-        (
+    (let (
             (sender tx-sender)
             (shares-to-mint (calculate-shares amount))
             (current-shares (default-to u0 (map-get? UserShares sender)))
-            (stats (default-to {total-deposited: u0, total-withdrawn: u0, last-action-block: u0} (map-get? UserStats sender)))
+            (stats (default-to {
+                total-deposited: u0,
+                total-withdrawn: u0,
+                last-action-block: u0,
+            }
+                (map-get? UserStats sender)
+            ))
         )
         (asserts! (not (var-get is-paused)) ERR-PAUSED)
         (asserts! (> amount u0) ERR-INVALID-AMOUNT)
-        
+
         (try! (stx-transfer? amount sender (as-contract tx-sender)))
-        
+
         (map-set UserShares sender (+ current-shares shares-to-mint))
-        (map-set UserStats sender (merge stats {
-            total-deposited: (+ (get total-deposited stats) amount),
-            last-action-block: block-height
-        }))
-        
+        (map-set UserStats sender
+            (merge stats {
+                total-deposited: (+ (get total-deposited stats) amount),
+                last-action-block: block-height,
+            })
+        )
+
         (var-set total-shares (+ (var-get total-shares) shares-to-mint))
         (var-set total-deposited (+ (var-get total-deposited) amount))
-        
+
         (print {
             event: "deposit",
             user: sender,
             amount: amount,
             shares-minted: shares-to-mint,
-            index: (var-get rebase-index)
+            index: (var-get rebase-index),
         })
         (ok shares-to-mint)
     )
 )
 
 (define-public (withdraw (shares-to-burn uint))
-    (let
-        (
+    (let (
             (sender tx-sender)
             (current-shares (default-to u0 (map-get? UserShares sender)))
             (stx-amount (calculate-stx-value shares-to-burn))
-            (stats (default-to {total-deposited: u0, total-withdrawn: u0, last-action-block: u0} (map-get? UserStats sender)))
+            (stats (default-to {
+                total-deposited: u0,
+                total-withdrawn: u0,
+                last-action-block: u0,
+            }
+                (map-get? UserStats sender)
+            ))
         )
         (asserts! (not (var-get is-paused)) ERR-PAUSED)
         (asserts! (> shares-to-burn u0) ERR-INVALID-AMOUNT)
         (asserts! (>= current-shares shares-to-burn) ERR-INSUFFICIENT-BALANCE)
-        
+
         (try! (as-contract (stx-transfer? stx-amount tx-sender sender)))
-        
+
         (map-set UserShares sender (- current-shares shares-to-burn))
-        (map-set UserStats sender (merge stats {
-            total-withdrawn: (+ (get total-withdrawn stats) stx-amount),
-            last-action-block: block-height
-        }))
-        
+        (map-set UserStats sender
+            (merge stats {
+                total-withdrawn: (+ (get total-withdrawn stats) stx-amount),
+                last-action-block: block-height,
+            })
+        )
+
         (var-set total-shares (- (var-get total-shares) shares-to-burn))
         (var-set total-deposited (- (var-get total-deposited) stx-amount))
-        
+
         (print {
             event: "withdraw",
             user: sender,
             stx-amount: stx-amount,
             shares-burned: shares-to-burn,
-            index: (var-get rebase-index)
+            index: (var-get rebase-index),
         })
         (ok stx-amount)
     )
 )
 
 (define-public (withdraw-all)
-    (let
-        (
+    (let (
             (sender tx-sender)
             (current-shares (default-to u0 (map-get? UserShares sender)))
         )
@@ -182,31 +188,32 @@
 )
 
 (define-public (rebase (rate-bips uint))
-    (let
-        (
+    (let (
             (current-index (var-get rebase-index))
             (index-increase (/ (* current-index rate-bips) u10000)) ;; rate is basis points (1 = 0.01%)
             (new-index (+ current-index index-increase))
         )
         (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
         (asserts! (<= rate-bips MAX-REBASE-RATE) ERR-REBASE-TOO-HIGH)
-        
+
         (var-set rebase-index new-index)
         (var-set last-rebase-block block-height)
-        
+
         (print {
             event: "rebase",
             old-index: current-index,
             new-index: new-index,
-            rate: rate-bips
+            rate: rate-bips,
         })
         (ok new-index)
     )
 )
 
-(define-public (transfer (amount-shares uint) (recipient principal))
-    (let
-        (
+(define-public (transfer
+        (amount-shares uint)
+        (recipient principal)
+    )
+    (let (
             (sender tx-sender)
             (sender-shares (default-to u0 (map-get? UserShares sender)))
             (recipient-shares (default-to u0 (map-get? UserShares recipient)))
@@ -215,33 +222,56 @@
         (asserts! (> amount-shares u0) ERR-INVALID-AMOUNT)
         (asserts! (not (is-eq sender recipient)) ERR-INVALID-AMOUNT)
         (asserts! (>= sender-shares amount-shares) ERR-INSUFFICIENT-BALANCE)
-        
+
         (map-set UserShares sender (- sender-shares amount-shares))
         (map-set UserShares recipient (+ recipient-shares amount-shares))
-        
+
         (print {
             event: "transfer",
             from: sender,
             to: recipient,
-            shares: amount-shares
+            shares: amount-shares,
         })
         (ok true)
     )
 )
 
 (define-public (donate-to-pool (amount uint))
-    (let
-        (
-            (sender tx-sender)
-        )
+    (let ((sender tx-sender))
         (asserts! (> amount u0) ERR-INVALID-AMOUNT)
         (try! (stx-transfer? amount sender (as-contract tx-sender)))
         (var-set total-deposited (+ (var-get total-deposited) amount))
         (print {
             event: "donation",
             user: sender,
-            amount: amount
+            amount: amount,
         })
         (ok true)
+    )
+)
+
+(define-public (distribute-yield)
+    (let (
+            (current-shares (var-get total-shares))
+            (current-balance (stx-get-balance (as-contract tx-sender)))
+            (current-index (var-get rebase-index))
+            (current-liabilities (/ (* current-shares current-index) SCALE-FACTOR))
+        )
+        (asserts! (> current-shares u0) (ok u0))
+        (asserts! (> current-balance current-liabilities) (ok u0))
+
+        (let ((new-index (/ (* current-balance SCALE-FACTOR) current-shares)))
+            (var-set rebase-index new-index)
+            (var-set last-rebase-block block-height)
+
+            (print {
+                event: "distribute-yield",
+                old-index: current-index,
+                new-index: new-index,
+                total-balance: current-balance,
+                shares: current-shares,
+            })
+            (ok new-index)
+        )
     )
 )
