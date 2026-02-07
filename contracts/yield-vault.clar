@@ -242,6 +242,54 @@
             user: sender,
             amount: amount
         })
+
         (ok true)
+    )
+)
+
+;; Flash Loan Feature
+(define-constant FLASH-LOAN-FEE u5) ;; 0.05% fee
+(define-constant ERR-LOAN-FAILED (err u1008))
+
+(use-trait flash-loan-user .flash-loan-user-trait.flash-loan-user)
+
+(define-public (flash-loan (amount uint) (recipient <flash-loan-user>))
+    (let
+        (
+            (sender tx-sender)
+            (pre-balance (stx-get-balance (as-contract tx-sender)))
+            (fee (/ (* amount FLASH-LOAN-FEE) u10000))
+            (repay-amount (+ amount fee))
+        )
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+        (asserts! (>= pre-balance amount) ERR-INSUFFICIENT-BALANCE)
+        
+        ;; Transfer loan amount to recipient
+        (try! (as-contract (stx-transfer? amount tx-sender (contract-of recipient))))
+        
+        ;; Execute the flash loan operation
+        ;; The recipient contract must implement execute-operation
+        (try! (contract-call? recipient execute-operation amount sender))
+        
+        ;; Verify repayment
+        (let
+            (
+                (post-balance (stx-get-balance (as-contract tx-sender)))
+            )
+            (asserts! (>= post-balance (+ pre-balance fee)) ERR-LOAN-FAILED)
+            
+            ;; Update total deposited to reflect the earned fee
+            ;; This increases the value of each share
+            (var-set total-deposited (+ (var-get total-deposited) fee))
+            
+            (print {
+                event: "flash-loan",
+                user: sender,
+                recipient: (contract-of recipient),
+                amount: amount,
+                fee: fee
+            })
+            (ok fee)
+        )
     )
 )
