@@ -1,14 +1,16 @@
 [network]
 name = "devnet"
+boot_contracts = ["poc-consensus", "bns", "costs-v2", "costs-3", "costs", "signers", "pox", "pox-2", "pox-3", "pox-4", "lockup"]
+pooled_stacking = false
 
 [accounts.deployer]
-mnemonic = "female adjust gallery certain visit token during great side clown fitness like hurt clip knife warm bench start reunion globe detail dream depend fortune"
+mnemonic = "fetch outside black test wash cover just alter gag judge pillar crime"
 balance = 100_000_000_000_000
 
 [accounts.wallet_1]
-mnemonic = "shadow private easily thought say logic fault paddle word top book during ignore notable orange flight clock image wealth health outside kitten belt reform"
+mnemonic = "spoil sock coyote verify alert coin garden dream pattern coast bargain grunt"
 balance = 100_000_000_000_000
 
 [accounts.wallet_2]
-mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+mnemonic = "arrange scale orient half ugly kid tick polar goddess fortune circle brick"
 balance = 100_000_000_000_000
