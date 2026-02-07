@@ -10,3 +10,8 @@ requirements = []
 path = "contracts/yield-vault.clar"
 clarity_version = 2
 epoch = 2.5
+
+[contracts.flash-loan-user-trait]
+path = "contracts/flash-loan-user-trait.clar"
+clarity_version = 2
+epoch = 2.5
