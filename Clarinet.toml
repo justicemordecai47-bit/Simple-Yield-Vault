@@ -1,0 +1,12 @@
+[project]
+name = "Simple-Yield-Vault"
+description = "Simple Yield Vault MVP"
+authors = []
+telemetry = true
+cache_dir = "./.cache"
+requirements = []
+
+[contracts.yield-vault]
+path = "contracts/yield-vault.clar"
+clarity_version = 2
+epoch = 2.5
